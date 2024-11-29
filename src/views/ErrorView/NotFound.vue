@@ -1,10 +1,12 @@
 <template>
     <div class="error-page">
-        <a-result status="404" title="404" sub-title="对不起，您访问的页面不存在">
-            <template #extra>
-                <a-button type="primary" @click="$router.replace({ path: '/' })">回到首页</a-button>
+        <Card>
+            <template #title>404</template>
+            <template #subtitle>对不起，您访问的页面不存在</template>
+            <template #footer>
+                <Button type="primary" @click="$router.replace({ path: '/' })">回到首页</Button>
             </template>
-        </a-result>
+        </Card>
     </div>
 </template>
 

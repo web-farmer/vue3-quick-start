@@ -4,7 +4,7 @@ import vue from '@vitejs/plugin-vue'
 import vueJsx from '@vitejs/plugin-vue-jsx'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
-import { AntDesignVueResolver } from 'unplugin-vue-components/resolvers'
+import { PrimeVueResolver } from '@primevue/auto-import-resolver'
 import dayjs from 'dayjs'
 // 引入插件
 import VitePluginMetaEnv from 'vite-plugin-meta-env'
@@ -17,9 +17,7 @@ import pkg from './package.json'
 const { name: title, version: APP_VERSION } = pkg
 
 // https://vitejs.dev/config/
-export default (configEnv: ConfigEnv) => {
-    const { mode } = configEnv
-    const env = loadEnv(mode, process.cwd())
+export default () => {
     // 增加环境变量
     const metaEnv = {
         APP_VERSION,
@@ -29,7 +27,7 @@ export default (configEnv: ConfigEnv) => {
 
     return defineConfig({
         // 设置打包路径
-        base: mode === 'development' ? '/' : `/${title}/`,
+        base: process.env.NODE_ENV === 'development' ? '/' : `/${title}/`,
         // 插件
         plugins: [
             vue({
@@ -46,7 +44,6 @@ export default (configEnv: ConfigEnv) => {
             vueJsx(),
             // 按需导入
             AutoImport({
-                resolvers: [AntDesignVueResolver()],
                 // targets to transform
                 include: [
                     /\.[tj]sx?$/, // .ts, .tsx, .js, .jsx
@@ -73,11 +70,7 @@ export default (configEnv: ConfigEnv) => {
                 }
             }),
             Components({
-                resolvers: [
-                    AntDesignVueResolver({
-                        importStyle: false // css in js
-                    })
-                ]
+                resolvers: [PrimeVueResolver()]
             }),
             // 环境变量
             VitePluginMetaEnv(metaEnv, 'import.meta.env'),
@@ -166,7 +159,7 @@ export default (configEnv: ConfigEnv) => {
             host: true,
             proxy: {
                 '/apis': {
-                    target: 'https://forguo.cn/api/',
+                    target: 'https://cloud-app.com.cn/api/',
                     changeOrigin: true,
                     rewrite: path => path.replace(/^\/apis/, '')
                 },

@@ -1,6 +1,9 @@
 import './assets/style/main.scss'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+// primevue
+import PrimeVue from 'primevue/config'
+import Aura from '@primevue/themes/aura'
 import App from '@/App.vue'
 import router from '@/router'
 import { appInfo } from '@/libs'
@@ -8,9 +11,13 @@ import plugins from '@/plugins'
 appInfo()
 
 const app = createApp(App)
-
-app.use(createPinia())
+const pinia = createPinia()
 app.use(router)
-app.use(plugins)
-
-app.mount('#app')
+    .use(PrimeVue, {
+        theme: {
+            preset: Aura
+        }
+    })
+    .use(pinia)
+    .use(plugins)
+    .mount('#app')

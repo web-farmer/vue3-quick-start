@@ -6,7 +6,7 @@ import { type RouterOptions } from 'vue-router'
 const routes: (RouteRecordRaw | any)[] = [
     {
         path: '/',
-        redirect: { path: '/WorkView' },
+        redirect: { path: '/HomeView' },
         component: LayoutMain,
         children: [
             {
@@ -14,12 +14,6 @@ const routes: (RouteRecordRaw | any)[] = [
                 component: () => import('@/views/ErrorView/NotFound.vue')
             }
         ]
-    },
-    {
-        path: '/login',
-        name: 'login',
-        meta: { title: '登录' },
-        component: () => import('@/views/LoginView/index.vue')
     }
 ]
 
@@ -32,19 +26,17 @@ for (const componentPath in views) {
     const $component = views[componentPath].default
     // 默认首页必须得
     if ($component && !$component.hidden) {
-        if ($component.name !== 'LoginView') {
-            const { name, title } = $component
-            routes[0].children.push({
-                path: name === 'WorkView' ? '/' : `/${name}`,
-                name: name,
-                title,
-                component: $component,
-                meta: {
-                    name,
-                    title
-                }
-            })
-        }
+        const { name, title } = $component
+        routes[0].children.push({
+            path: name === 'HomeView' ? '/' : `/${name}`,
+            name: name,
+            title,
+            component: $component,
+            meta: {
+                name,
+                title
+            }
+        })
     }
 }
 

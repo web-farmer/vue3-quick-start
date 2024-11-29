@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { login } from '@/services/user'
 import { useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
 export interface ILoginParams {
     username: string
     password: string
@@ -32,7 +31,6 @@ export const useUserStore = defineStore('userStore', () => {
         await router.push({
             path: '/'
         })
-        message.success('登录成功～')
     }
 
     const userLogout = async () => {

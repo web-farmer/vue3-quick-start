@@ -7,7 +7,6 @@
 import axios from 'axios'
 import type { AxiosResponse, AxiosInstance, AxiosRequestConfig, CreateAxiosDefaults } from 'axios'
 import { useUserStore } from '@/stores'
-import { Modal, message } from 'ant-design-vue'
 
 /**
  * @Description: 请求响应接口
@@ -62,24 +61,25 @@ class Request {
             if (code === 200) {
                 return Promise.resolve(res.data)
             } else if (code === 401) {
-                Modal.confirm({
-                    title: '确认',
-                    content: '登录已过期，请重新登录~',
-                    onOk() {
-                        userLogout()
-                        return Promise.reject(res.data)
-                    }
-                })
+                userLogout()
+                // Modal.confirm({
+                //     title: '确认',
+                //     content: '登录已过期，请重新登录~',
+                //     onOk() {
+                //         userLogout()
+                //         return Promise.reject(res.data)
+                //     }
+                // })
             } else {
                 if (showError) {
-                    message.warning(res.data.message || '服务繁忙，请重试~')
+                    alert(res.data.message || '服务繁忙，请重试~')
                 }
                 return Promise.reject(res.data)
             }
         } else {
             const { showError = true } = res.config
             if (showError) {
-                message.warning(res.message || res.data.message || res.response.statusText || '服务繁忙，请重试~')
+                alert(res.message || res.data.message || res.response.statusText || '服务繁忙，请重试~')
             }
         }
         return Promise.reject(res)
