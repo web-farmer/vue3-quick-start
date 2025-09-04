@@ -10,8 +10,8 @@ defineOptions({
     title: 'ImageCompare'
 })
 
-import ImageCompareViewer from 'image-compare-viewer'
-import 'image-compare-viewer/dist/image-compare-viewer.min.css'
+import ImageCompareViewer from '@/components/ImageCompareViewer'
+import '@/components/ImageCompareViewer/index.scss'
 
 let scaleFactor = 1 // 缩放比例因子
 let mouseX = 0 // 鼠标相对于元素的X坐标
@@ -29,7 +29,8 @@ const handleCompareScale = (event: WheelEvent) => {
     const container: any = document.getElementById('image-compare')
     if (!container) return
 
-    const imageElements = container.querySelectorAll('.icv__img')
+    // const imageElements = container.querySelectorAll('.icv__img')
+    const imageElements = container.querySelectorAll('.icv__wrapper,.icv__fluidwrapper')
     if (!imageElements || !imageElements.length) return
 
     // 假设事件处理程序用于鼠标滚轮事件
@@ -103,12 +104,9 @@ onMounted(() => {
             hoverStart: false,
             verticalMode: false,
             startingPoint: 50,
-            fluidMode: false // 需手动设置宽高
+            fluidMode: true
         }
         const viewer = new ImageCompareViewer(element, options).mount()
-
-        document.getElementById('image-compare')?.addEventListener('wheel', handleCompareScale)
-        document.getElementById('image-compare')?.addEventListener('mousemove', handleComparePosition)
     })
 })
 
@@ -119,7 +117,8 @@ onUnmounted(() => {
 </script>
 <style lang="scss" scoped>
 #image-compare {
-    width: 90vh;
+    width: 80vw;
+    height: 80vh;
     margin: 0 auto;
     overflow: hidden;
 }
