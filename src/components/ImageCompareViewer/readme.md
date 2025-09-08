@@ -1,5 +1,7 @@
 ImageCompareViewer
 
+图片对比组件
+
 > 基于 [image-compare-viewer](https://github.com/kylewetton/image-compare-viewer.git) 二次
 
 ## 新增功能
@@ -7,5 +9,3 @@ ImageCompareViewer
 - 图片缩放功能
 - 支持 ts
 - 支持 vue3 组件
-
-

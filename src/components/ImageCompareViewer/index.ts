@@ -2,7 +2,20 @@
 import { disableBodyScroll, enableBodyScroll } from 'body-scroll-lock-upgrade'
 
 class ImageCompareViewer {
-    constructor(el, settings = {}) {
+    settings: any
+    el: any
+    images: any
+    wrapper: any
+    control: any
+    arrowContainer: any
+    arrowAnimator: any
+    safariAgent: any
+    slideWidth: any
+    lineWidth: any
+    active: any
+    arrowCoordinates: any
+
+    constructor(el: any, settings: any = {}) {
         const defaults = {
             controlColor: '#FFFFFF',
             controlShadow: true,
@@ -34,7 +47,7 @@ class ImageCompareViewer {
         this.arrowAnimator = []
         this.active = false
         this.slideWidth = 50
-        this.lineWidth = 2
+        this.lineWidth = settings.lineWidth || 2
         this.arrowCoordinates = {
             circle: [5, 3],
             standard: [8, 0]
@@ -51,19 +64,20 @@ class ImageCompareViewer {
         this._getImages()
         this._buildControl()
         this._events()
+        return this
     }
 
     _events() {
         const bodyStyles = ``
 
         // Desktop events
-        this.el.addEventListener('mousedown', ev => {
+        this.el.addEventListener('mousedown', (ev: any) => {
             this._activate(true)
             document.body.classList.add('icv__body')
             disableBodyScroll(this.el, { reserveScrollBarGap: true })
             this._slideCompare(ev)
         })
-        this.el.addEventListener('mousemove', ev => this.active && this._slideCompare(ev))
+        this.el.addEventListener('mousemove', (ev: any) => this.active && this._slideCompare(ev))
 
         this.el.addEventListener('mouseup', () => this._activate(false))
         document.body.addEventListener('mouseup', () => {
@@ -74,13 +88,13 @@ class ImageCompareViewer {
 
         // Mobile events
 
-        this.control.addEventListener('touchstart', e => {
+        this.control.addEventListener('touchstart', (e: any) => {
             this._activate(true)
             document.body.classList.add('icv__body')
             disableBodyScroll(this.el, { reserveScrollBarGap: true })
         })
 
-        this.el.addEventListener('touchmove', ev => {
+        this.el.addEventListener('touchmove', (ev: any) => {
             this.active && this._slideCompare(ev)
         })
         this.el.addEventListener('touchend', () => {
@@ -95,7 +109,7 @@ class ImageCompareViewer {
             this.settings.hoverStart && this._activate(true)
             const coord = this.settings.addCircle ? this.arrowCoordinates.circle : this.arrowCoordinates.standard
 
-            this.arrowAnimator.forEach((anim, i) => {
+            this.arrowAnimator.forEach((anim: any, i: any) => {
                 anim.style.cssText = `
         ${
             this.settings.verticalMode
@@ -109,7 +123,7 @@ class ImageCompareViewer {
         this.el.addEventListener('mouseleave', () => {
             const coord = this.settings.addCircle ? this.arrowCoordinates.circle : this.arrowCoordinates.standard
 
-            this.arrowAnimator.forEach((anim, i) => {
+            this.arrowAnimator.forEach((anim: any, i: any) => {
                 anim.style.cssText = `
         ${
             this.settings.verticalMode
@@ -119,9 +133,36 @@ class ImageCompareViewer {
         `
             })
         })
+
+        /**
+         * yoka
+         * update image-b size by image-a
+         * resized reset upscale
+         */
+        const imageA = this.el?.querySelector('.icv__img-a')
+        const imageB = this.el?.querySelector('.icv__img-b')
+        if (!this.settings.fluidMode && imageA) {
+            window.addEventListener('resize', () => {
+                const elWidth = this.el?.getBoundingClientRect()?.width
+                if (!this.settings.fluidMode && elWidth) {
+                    imageB.style.width = `${elWidth.toFixed(2)}px`
+                }
+
+                // 恢复原始样式
+                imageA.style.imageRendering = null
+                imageA.style.transform = null
+                imageA.style.transformOrigin = null
+                imageA.style.maxWidth = null
+
+                imageB.style.imageRendering = null
+                imageB.style.transform = null
+                imageB.style.transformOrigin = null
+                imageB.style.maxWidth = null
+            })
+        }
     }
 
-    _slideCompare(ev) {
+    _slideCompare(ev: any) {
         const bounds = this.el.getBoundingClientRect()
         const x = ev.touches !== undefined ? ev.touches[0].clientX - bounds.left : ev.clientX - bounds.left
         const y = ev.touches !== undefined ? ev.touches[0].clientY - bounds.top : ev.clientY - bounds.top
@@ -145,7 +186,7 @@ class ImageCompareViewer {
         }
     }
 
-    _activate(state) {
+    _activate(state: any) {
         this.active = state
     }
 
@@ -203,8 +244,8 @@ class ImageCompareViewer {
       height="15"
       width="15"
        style="
-       transform:
-       scale(${this.settings.addCircle ? 0.7 : 1.5})
+       transform: 
+       scale(${this.settings.addCircle ? 0.7 : 1.5})  
        rotateZ(${
            idx === 0
                ? this.settings.verticalMode
@@ -214,7 +255,7 @@ class ImageCompareViewer {
                ? `90deg`
                : `0deg`
        }); height: ${arrowSize}px; width: ${arrowSize}px;
-
+       
        ${
            this.settings.controlShadow
                ? `
@@ -240,7 +281,7 @@ class ImageCompareViewer {
 
         const coord = this.settings.addCircle ? this.arrowCoordinates.circle : this.arrowCoordinates.standard
 
-        this.arrowAnimator.forEach((anim, i) => {
+        this.arrowAnimator.forEach((anim: any, i: any) => {
             anim.classList.add('icv__arrow-wrapper')
 
             anim.style.cssText = `
@@ -280,7 +321,7 @@ class ImageCompareViewer {
         circle.style.cssText = `
 
       ${this.settings.addCircleBlur && `-webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px)`};
-
+      
       border: ${this.lineWidth}px solid ${this.settings.controlColor};
       ${this.settings.controlShadow && `box-shadow: 0px 0px 15px rgba(0,0,0,0.33)`};
     `
@@ -299,7 +340,7 @@ class ImageCompareViewer {
     _getImages() {
         const children = this.el.querySelectorAll('img, video, .keep')
         this.el.innerHTML = ''
-        children.forEach(img => {
+        children.forEach((img: any) => {
             this.el.appendChild(img)
         })
 
@@ -317,11 +358,12 @@ class ImageCompareViewer {
             child.classList.add(idx === 0 ? `icv__img-a` : `icv__img-b`)
 
             if (idx === 1) {
+                const imageWidth = this.el?.querySelector('.icv__img-a')?.getBoundingClientRect()?.width
                 const wrapper = document.createElement('div')
                 const afterUrl = childrenImages[1].src
                 wrapper.classList.add('icv__wrapper')
                 wrapper.style.cssText = `
-            width: ${100 - this.settings.startingPoint}%;
+            width: ${100 - this.settings.startingPoint}%; 
             height: ${this.settings.startingPoint}%;
 
             ${
@@ -341,6 +383,10 @@ class ImageCompareViewer {
             }
         `
 
+                if (!this.settings.fluidMode) {
+                    child.style.width = `${imageWidth}px`
+                }
+
                 wrapper.appendChild(child)
                 this.wrapper = wrapper
                 this.el.appendChild(this.wrapper)
@@ -351,12 +397,31 @@ class ImageCompareViewer {
             const fluidWrapper = document.createElement('div')
             fluidWrapper.classList.add('icv__fluidwrapper')
             fluidWrapper.style.cssText = `
-
+ 
         background-image: url(${url});
-
+        
       `
             this.el.appendChild(fluidWrapper)
         }
+    }
+
+    // 重置，恢复对比位置，缩放层级
+    reset() {
+        // this.mount()
+        // this.slideWidth = 50
+        // const position = 50
+        // this.settings.verticalMode
+        //   ? (this.control.style.top = `calc(${position}% - ${this.slideWidth / 2}px)`)
+        //   : (this.control.style.left = `calc(${position}% - ${this.slideWidth / 2}px)`)
+        // if (this.settings.fluidMode) {
+        //   this.settings.verticalMode
+        //     ? (this.wrapper.style.clipPath = `inset(0 0 ${100 - position}% 0)`)
+        //     : (this.wrapper.style.clipPath = `inset(0 0 0 ${position}%)`)
+        // } else {
+        //   this.settings.verticalMode
+        //     ? (this.wrapper.style.height = `calc(${position}%)`)
+        //     : (this.wrapper.style.width = `calc(${100 - position}%)`)
+        // }
     }
 }
 
