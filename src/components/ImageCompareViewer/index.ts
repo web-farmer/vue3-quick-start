@@ -1,22 +1,45 @@
-// @ts-ignore
 import { disableBodyScroll, enableBodyScroll } from 'body-scroll-lock-upgrade'
 
-class ImageCompareViewer {
-    settings: any
-    el: any
-    images: any
-    wrapper: any
-    control: any
-    arrowContainer: any
-    arrowAnimator: any
-    safariAgent: any
-    slideWidth: any
-    lineWidth: any
-    active: any
-    arrowCoordinates: any
+interface LabelOptions {
+    before: string
+    after: string
+    onHover: boolean
+}
 
-    constructor(el: any, settings: any = {}) {
-        const defaults = {
+interface Settings {
+    controlColor: string
+    controlShadow: boolean
+    addCircle: boolean
+    addCircleBlur: boolean
+    showLabels: boolean
+    labelOptions: LabelOptions
+    smoothing: boolean
+    smoothingAmount: number
+    hoverStart: boolean
+    verticalMode: boolean
+    startingPoint: number
+    fluidMode: boolean
+    lineWidth?: number
+}
+
+class ImageCompareViewer {
+    private settings: Settings
+    private el: HTMLElement
+    private wrapper: HTMLElement | null = null
+    private control: HTMLElement | null = null
+    private arrowContainer: HTMLElement | null = null
+    private arrowAnimator: HTMLElement[] = []
+    private readonly safariAgent: boolean
+    private slideWidth: number = 50
+    private lineWidth: number
+    private active: boolean = false
+    private readonly arrowCoordinates = {
+        circle: [5, 3] as const,
+        standard: [8, 0] as const
+    }
+
+    constructor(el: HTMLElement, settings: Partial<Settings> = {}) {
+        const defaults: Settings = {
             controlColor: '#FFFFFF',
             controlShadow: true,
             addCircle: false,
@@ -35,355 +58,274 @@ class ImageCompareViewer {
             fluidMode: false
         }
 
-        this.settings = Object.assign(defaults, settings)
-
-        this.safariAgent = navigator.userAgent.indexOf('Safari') != -1 && navigator.userAgent.indexOf('Chrome') == -1
-
+        this.settings = { ...defaults, ...settings }
+        this.safariAgent = navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome')
         this.el = el
-        this.images = {}
-        this.wrapper = null
-        this.control = null
-        this.arrowContainer = null
-        this.arrowAnimator = []
-        this.active = false
-        this.slideWidth = 50
         this.lineWidth = settings.lineWidth || 2
-        this.arrowCoordinates = {
-            circle: [5, 3],
-            standard: [8, 0]
-        }
     }
 
-    mount() {
-        // Temporarily disable Safari smoothing
+    public mount(): this {
         if (this.safariAgent) {
             this.settings.smoothing = false
         }
 
-        this._shapeContainer()
-        this._getImages()
-        this._buildControl()
-        this._events()
+        this.shapeContainer()
+        this.getImages()
+        this.buildControl()
+        this.setupEvents()
         return this
     }
 
-    _events() {
-        const bodyStyles = ``
-
-        // Desktop events
-        this.el.addEventListener('mousedown', (ev: any) => {
-            this._activate(true)
+    private setupEvents(): void {
+        this.el.addEventListener('mousedown', (ev: MouseEvent) => {
+            this.activate(true)
             document.body.classList.add('icv__body')
             disableBodyScroll(this.el, { reserveScrollBarGap: true })
-            this._slideCompare(ev)
+            this.slideCompare(ev)
         })
-        this.el.addEventListener('mousemove', (ev: any) => this.active && this._slideCompare(ev))
 
-        this.el.addEventListener('mouseup', () => this._activate(false))
+        this.el.addEventListener('mousemove', (ev: MouseEvent) => {
+            if (this.active) this.slideCompare(ev)
+        })
+
+        this.el.addEventListener('mouseup', () => this.activate(false))
+
         document.body.addEventListener('mouseup', () => {
             document.body.classList.remove('icv__body')
             enableBodyScroll(this.el)
-            this._activate(false)
+            this.activate(false)
         })
 
-        // Mobile events
-
-        this.control.addEventListener('touchstart', (e: any) => {
-            this._activate(true)
+        this.control?.addEventListener('touchstart', () => {
+            this.activate(true)
             document.body.classList.add('icv__body')
             disableBodyScroll(this.el, { reserveScrollBarGap: true })
         })
 
-        this.el.addEventListener('touchmove', (ev: any) => {
-            this.active && this._slideCompare(ev)
+        this.el.addEventListener('touchmove', (ev: TouchEvent) => {
+            if (this.active) this.slideCompare(ev)
         })
+
         this.el.addEventListener('touchend', () => {
-            this._activate(false)
+            this.activate(false)
             document.body.classList.remove('icv__body')
             enableBodyScroll(this.el)
         })
 
-        // hover
-
         this.el.addEventListener('mouseenter', () => {
-            this.settings.hoverStart && this._activate(true)
-            const coord = this.settings.addCircle ? this.arrowCoordinates.circle : this.arrowCoordinates.standard
-
-            this.arrowAnimator.forEach((anim: any, i: any) => {
-                anim.style.cssText = `
-        ${
-            this.settings.verticalMode
-                ? `transform: translateY(${coord[1] * (i === 0 ? 1 : -1)}px);`
-                : `transform: translateX(${coord[1] * (i === 0 ? 1 : -1)}px);`
-        }
-        `
-            })
+            if (this.settings.hoverStart) this.activate(true)
+            this.updateArrowPosition(true)
         })
 
         this.el.addEventListener('mouseleave', () => {
-            const coord = this.settings.addCircle ? this.arrowCoordinates.circle : this.arrowCoordinates.standard
-
-            this.arrowAnimator.forEach((anim: any, i: any) => {
-                anim.style.cssText = `
-        ${
-            this.settings.verticalMode
-                ? `transform: translateY(${i === 0 ? `${coord[0]}px` : `-${coord[0]}px`});`
-                : `transform: translateX(${i === 0 ? `${coord[0]}px` : `-${coord[0]}px`});`
-        }
-        `
-            })
+            this.updateArrowPosition(false)
         })
 
-        /**
-         * yoka
-         * update image-b size by image-a
-         * resized reset upscale
-         */
-        const imageA = this.el?.querySelector('.icv__img-a')
-        const imageB = this.el?.querySelector('.icv__img-b')
-        if (!this.settings.fluidMode && imageA) {
-            window.addEventListener('resize', () => {
-                const elWidth = this.el?.getBoundingClientRect()?.width
-                if (!this.settings.fluidMode && elWidth) {
-                    imageB.style.width = `${elWidth.toFixed(2)}px`
-                }
+        if (!this.settings.fluidMode) {
+            const imageA = this.el.querySelector('.icv__img-a') as HTMLElement
+            const imageB = this.el.querySelector('.icv__img-b') as HTMLElement
 
-                // 恢复原始样式
-                imageA.style.imageRendering = null
-                imageA.style.transform = null
-                imageA.style.transformOrigin = null
-                imageA.style.maxWidth = null
+            if (imageA) {
+                window.addEventListener('resize', () => {
+                    const elWidth = this.el.getBoundingClientRect().width
+                    if (elWidth) {
+                        imageB.style.width = `${elWidth.toFixed(2)}px`
+                    }
 
-                imageB.style.imageRendering = null
-                imageB.style.transform = null
-                imageB.style.transformOrigin = null
-                imageB.style.maxWidth = null
-            })
-        }
-    }
-
-    _slideCompare(ev: any) {
-        const bounds = this.el.getBoundingClientRect()
-        const x = ev.touches !== undefined ? ev.touches[0].clientX - bounds.left : ev.clientX - bounds.left
-        const y = ev.touches !== undefined ? ev.touches[0].clientY - bounds.top : ev.clientY - bounds.top
-
-        const position = this.settings.verticalMode ? (y / bounds.height) * 100 : (x / bounds.width) * 100
-
-        if (position >= 0 && position <= 100) {
-            this.settings.verticalMode
-                ? (this.control.style.top = `calc(${position}% - ${this.slideWidth / 2}px)`)
-                : (this.control.style.left = `calc(${position}% - ${this.slideWidth / 2}px)`)
-
-            if (this.settings.fluidMode) {
-                this.settings.verticalMode
-                    ? (this.wrapper.style.clipPath = `inset(0 0 ${100 - position}% 0)`)
-                    : (this.wrapper.style.clipPath = `inset(0 0 0 ${position}%)`)
-            } else {
-                this.settings.verticalMode
-                    ? (this.wrapper.style.height = `calc(${position}%)`)
-                    : (this.wrapper.style.width = `calc(${100 - position}%)`)
+                    ;[imageA, imageB].forEach(img => {
+                        img.style.imageRendering = ''
+                        img.style.transform = ''
+                        img.style.transformOrigin = ''
+                        img.style.maxWidth = ''
+                    })
+                })
             }
         }
     }
 
-    _activate(state: any) {
+    private slideCompare(ev: MouseEvent | TouchEvent): void {
+        if (!this.control || !this.wrapper) return
+
+        const bounds = this.el.getBoundingClientRect()
+        const clientX = 'touches' in ev ? ev.touches[0].clientX : (ev as MouseEvent).clientX
+        const clientY = 'touches' in ev ? ev.touches[0].clientY : (ev as MouseEvent).clientY
+
+        const x = clientX - bounds.left
+        const y = clientY - bounds.top
+
+        const position = this.settings.verticalMode ? (y / bounds.height) * 100 : (x / bounds.width) * 100
+
+        if (position >= 0 && position <= 100) {
+            const controlStyle = this.settings.verticalMode
+                ? `calc(${position}% - ${this.slideWidth / 2}px)`
+                : `calc(${position}% - ${this.slideWidth / 2}px)`
+
+            if (this.settings.verticalMode) {
+                this.control.style.top = controlStyle
+            } else {
+                this.control.style.left = controlStyle
+            }
+
+            if (this.settings.fluidMode) {
+                this.wrapper.style.clipPath = this.settings.verticalMode
+                    ? `inset(0 0 ${100 - position}% 0)`
+                    : `inset(0 0 0 ${position}%)`
+            } else {
+                if (this.settings.verticalMode) {
+                    this.wrapper.style.height = `calc(${position}%)`
+                } else {
+                    this.wrapper.style.width = `calc(${100 - position}%)`
+                }
+            }
+        }
+    }
+
+    private activate(state: boolean): void {
         this.active = state
     }
 
-    _shapeContainer() {
+    private shapeContainer(): void {
         const imposter = document.createElement('div')
-        const label_l = document.createElement('span')
-        const label_r = document.createElement('span')
+        const labelL = document.createElement('span')
+        const labelR = document.createElement('span')
 
-        label_l.classList.add('icv__label', 'icv__label-before', 'keep')
-        label_r.classList.add('icv__label', 'icv__label-after', 'keep')
+        labelL.classList.add('icv__label', 'icv__label-before', 'keep')
+        labelR.classList.add('icv__label', 'icv__label-after', 'keep')
 
         if (this.settings.labelOptions.onHover) {
-            label_l.classList.add('on-hover')
-            label_r.classList.add('on-hover')
+            labelL.classList.add('on-hover')
+            labelR.classList.add('on-hover')
         }
 
         if (this.settings.verticalMode) {
-            label_l.classList.add('vertical')
-            label_r.classList.add('vertical')
+            labelL.classList.add('vertical')
+            labelR.classList.add('vertical')
         }
 
-        label_l.innerHTML = this.settings.labelOptions.before || 'Before'
-        label_r.innerHTML = this.settings.labelOptions.after || 'After'
+        labelL.textContent = this.settings.labelOptions.before || 'Before'
+        labelR.textContent = this.settings.labelOptions.after || 'After'
 
         if (this.settings.showLabels) {
-            this.el.appendChild(label_l)
-            this.el.appendChild(label_r)
+            this.el.appendChild(labelL)
+            this.el.appendChild(labelR)
         }
 
         this.el.classList.add(
-            `icv`,
-            this.settings.verticalMode ? `icv__icv--vertical` : `icv__icv--horizontal`,
-            this.settings.fluidMode ? `icv__is--fluid` : `standard`
+            'icv',
+            this.settings.verticalMode ? 'icv__icv--vertical' : 'icv__icv--horizontal',
+            this.settings.fluidMode ? 'icv__is--fluid' : 'standard'
         )
 
         imposter.classList.add('icv__imposter')
-
         this.el.appendChild(imposter)
     }
 
-    _buildControl() {
+    private buildControl(): void {
         const control = document.createElement('div')
         const uiLine = document.createElement('div')
         const arrows = document.createElement('div')
         const circle = document.createElement('div')
 
-        const arrowSize = '20'
-
         arrows.classList.add('icv__theme-wrapper')
 
         for (let idx = 0; idx <= 1; idx++) {
-            const animator = document.createElement(`div`)
+            const animator = document.createElement('div')
+            const rotation = this.getArrowRotation(idx)
 
-            const arrow = `<svg
-      height="15"
-      width="15"
-       style="
-       transform: 
-       scale(${this.settings.addCircle ? 0.7 : 1.5})  
-       rotateZ(${
-           idx === 0
-               ? this.settings.verticalMode
-                   ? `-90deg`
-                   : `180deg`
-               : this.settings.verticalMode
-               ? `90deg`
-               : `0deg`
-       }); height: ${arrowSize}px; width: ${arrowSize}px;
-       
-       ${
-           this.settings.controlShadow
-               ? `
-       -webkit-filter: drop-shadow( 0px 3px 5px rgba(0, 0, 0, .33));
-       filter: drop-shadow( 0px ${idx === 0 ? '-3px' : '3px'} 5px rgba(0, 0, 0, .33));
-       `
-               : ``
-       }
-       "
-       xmlns="http://www.w3.org/2000/svg" data-name="Layer 1" viewBox="0 0 15 15">
-       <path ${this.settings.addCircle ? `fill="transparent"` : `fill="${this.settings.controlColor}"`}
-       stroke="${this.settings.controlColor}"
-       stroke-linecap="round"
-       stroke-width="${this.settings.addCircle ? 3 : 0}"
-       d="M4.5 1.9L10 7.65l-5.5 5.4"
-       />
-     </svg>`
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+            svg.setAttribute('height', '15')
+            svg.setAttribute('width', '15')
+            svg.setAttribute('viewBox', '0 0 15 15')
+            svg.setAttribute('data-name', 'Layer 1')
 
-            animator.innerHTML += arrow
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+            path.setAttribute('stroke', this.settings.controlColor)
+            path.setAttribute('stroke-linecap', 'round')
+            path.setAttribute('stroke-width', this.settings.addCircle ? '3' : '0')
+            path.setAttribute('d', 'M4.5 1.9L10 7.65l-5.5 5.4')
+
+            if (this.settings.addCircle) {
+                path.setAttribute('fill', 'transparent')
+            } else {
+                path.setAttribute('fill', this.settings.controlColor)
+            }
+
+            svg.appendChild(path)
+            animator.appendChild(svg)
+
             this.arrowAnimator.push(animator)
             arrows.appendChild(animator)
         }
 
-        const coord = this.settings.addCircle ? this.arrowCoordinates.circle : this.arrowCoordinates.standard
-
-        this.arrowAnimator.forEach((anim: any, i: any) => {
-            anim.classList.add('icv__arrow-wrapper')
-
-            anim.style.cssText = `
-      ${
-          this.settings.verticalMode
-              ? `transform: translateY(${i === 0 ? `${coord[0]}px` : `-${coord[0]}px`});`
-              : `transform: translateX(${i === 0 ? `${coord[0]}px` : `-${coord[0]}px`});`
-      }
-      `
-        })
+        this.updateArrowPosition(false)
 
         control.classList.add('icv__control')
-
         control.style.cssText = `
-    ${this.settings.verticalMode ? `height` : `width `}: ${this.slideWidth}px;
-    ${this.settings.verticalMode ? `top` : `left `}: calc(${this.settings.startingPoint}% - ${this.slideWidth / 2}px);
-    ${
-        'ontouchstart' in document.documentElement
-            ? ``
-            : this.settings.smoothing
-            ? `transition: ${this.settings.smoothingAmount}ms ease-out;`
-            : ``
-    }
+      ${this.settings.verticalMode ? 'height' : 'width'}: ${this.slideWidth}px;
+      ${this.settings.verticalMode ? 'top' : 'left'}: calc(${this.settings.startingPoint}% - ${this.slideWidth / 2}px);
+      ${this.getTransitionStyle()}
     `
 
         uiLine.classList.add('icv__control-line')
-
         uiLine.style.cssText = `
-      ${this.settings.verticalMode ? `height` : `width `}: ${this.lineWidth}px;
+      ${this.settings.verticalMode ? 'height' : 'width'}: ${this.lineWidth}px;
       background: ${this.settings.controlColor};
-        ${this.settings.controlShadow ? `box-shadow: 0px 0px 15px rgba(0,0,0,0.33);` : ``}
+      ${this.settings.controlShadow ? 'box-shadow: 0px 0px 15px rgba(0,0,0,0.33);' : ''}
     `
 
-        const uiLine2 = uiLine.cloneNode(true)
+        const uiLine2 = uiLine.cloneNode(true) as HTMLElement
 
         circle.classList.add('icv__circle')
         circle.style.cssText = `
-
-      ${this.settings.addCircleBlur && `-webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px)`};
-      
+      ${this.settings.addCircleBlur ? '-webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);' : ''}
       border: ${this.lineWidth}px solid ${this.settings.controlColor};
-      ${this.settings.controlShadow && `box-shadow: 0px 0px 15px rgba(0,0,0,0.33)`};
+      ${this.settings.controlShadow ? 'box-shadow: 0px 0px 15px rgba(0,0,0,0.33);' : ''}
     `
 
         control.appendChild(uiLine)
-        this.settings.addCircle && control.appendChild(circle)
+        if (this.settings.addCircle) control.appendChild(circle)
         control.appendChild(arrows)
         control.appendChild(uiLine2)
 
         this.arrowContainer = arrows
-
         this.control = control
         this.el.appendChild(control)
     }
 
-    _getImages() {
+    private getImages(): void {
         const children = this.el.querySelectorAll('img, video, .keep')
         this.el.innerHTML = ''
-        children.forEach((img: any) => {
-            this.el.appendChild(img)
-        })
+        children.forEach(img => this.el.appendChild(img))
 
-        const childrenImages = [...children].filter(element =>
+        const childrenImages = Array.from(children).filter(element =>
             ['img', 'video'].includes(element.nodeName.toLowerCase())
         )
 
-        //  this.settings.verticalMode && [...children].reverse();
-        this.settings.verticalMode && childrenImages.reverse()
+        if (this.settings.verticalMode) {
+            childrenImages.reverse()
+        }
 
         for (let idx = 0; idx <= 1; idx++) {
-            const child = childrenImages[idx]
+            const child = childrenImages[idx] as HTMLElement
+            if (!child) continue
 
             child.classList.add('icv__img')
-            child.classList.add(idx === 0 ? `icv__img-a` : `icv__img-b`)
+            child.classList.add(idx === 0 ? 'icv__img-a' : 'icv__img-b')
 
             if (idx === 1) {
-                const imageWidth = this.el?.querySelector('.icv__img-a')?.getBoundingClientRect()?.width
+                const imageWidth = this.el.querySelector('.icv__img-a')?.getBoundingClientRect().width
                 const wrapper = document.createElement('div')
-                const afterUrl = childrenImages[1].src
+                const afterUrl = (childrenImages[1] as HTMLImageElement).src
+
                 wrapper.classList.add('icv__wrapper')
                 wrapper.style.cssText = `
-            width: ${100 - this.settings.startingPoint}%; 
-            height: ${this.settings.startingPoint}%;
-
-            ${
-                'ontouchstart' in document.documentElement
-                    ? ``
-                    : this.settings.smoothing
-                    ? `transition: ${this.settings.smoothingAmount}ms ease-out;`
-                    : ``
-            }
-            ${
-                this.settings.fluidMode &&
-                `background-image: url(${afterUrl}); clip-path: inset(${
-                    this.settings.verticalMode
-                        ? ` 0 0 ${100 - this.settings.startingPoint}% 0`
-                        : `0 0 0 ${this.settings.startingPoint}%`
-                })`
-            }
+          width: ${100 - this.settings.startingPoint}%;
+          height: ${this.settings.startingPoint}%;
+          ${this.getTransitionStyle()}
+          ${this.getFluidModeStyle(afterUrl)}
         `
 
-                if (!this.settings.fluidMode) {
+                if (!this.settings.fluidMode && imageWidth) {
                     child.style.width = `${imageWidth}px`
                 }
 
@@ -392,54 +334,62 @@ class ImageCompareViewer {
                 this.el.appendChild(this.wrapper)
             }
         }
+
         if (this.settings.fluidMode) {
-            const url = childrenImages[0].src
+            const url = (childrenImages[0] as HTMLImageElement).src
             const fluidWrapper = document.createElement('div')
             fluidWrapper.classList.add('icv__fluidwrapper')
-            fluidWrapper.style.cssText = `
- 
-        background-image: url(${url});
-        
-      `
+            fluidWrapper.style.cssText = `background-image: url(${url});`
             this.el.appendChild(fluidWrapper)
         }
     }
 
-    // 重置，恢复对比位置，缩放层级
-    reset() {
-        // this.mount()
-        // this.slideWidth = 50
-        // const position = 50
-        // this.settings.verticalMode
-        //   ? (this.control.style.top = `calc(${position}% - ${this.slideWidth / 2}px)`)
-        //   : (this.control.style.left = `calc(${position}% - ${this.slideWidth / 2}px)`)
-        // if (this.settings.fluidMode) {
-        //   this.settings.verticalMode
-        //     ? (this.wrapper.style.clipPath = `inset(0 0 ${100 - position}% 0)`)
-        //     : (this.wrapper.style.clipPath = `inset(0 0 0 ${position}%)`)
-        // } else {
-        //   this.settings.verticalMode
-        //     ? (this.wrapper.style.height = `calc(${position}%)`)
-        //     : (this.wrapper.style.width = `calc(${100 - position}%)`)
-        // }
+    private getArrowRotation(idx: number): string {
+        if (idx === 0) {
+            return this.settings.verticalMode ? '-90deg' : '180deg'
+        }
+        return this.settings.verticalMode ? '90deg' : '0deg'
+    }
+
+    private getTransitionStyle(): string {
+        return 'ontouchstart' in document.documentElement || !this.settings.smoothing
+            ? ''
+            : `transition: ${this.settings.smoothingAmount}ms ease-out;`
+    }
+
+    private getFluidModeStyle(afterUrl: string): string {
+        if (!this.settings.fluidMode) return ''
+        return `
+      background-image: url(${afterUrl});
+      clip-path: inset(${
+          this.settings.verticalMode
+              ? `0 0 ${100 - this.settings.startingPoint}% 0`
+              : `0 0 0 ${this.settings.startingPoint}%`
+      })
+    `
+    }
+
+    private updateArrowPosition(isHover: boolean): void {
+        const coord = this.settings.addCircle ? this.arrowCoordinates.circle : this.arrowCoordinates.standard
+
+        this.arrowAnimator.forEach((anim, i) => {
+            const translateValue = isHover
+                ? `${coord[1] * (i === 0 ? 1 : -1)}px`
+                : `${i === 0 ? coord[0] : -coord[0]}px`
+
+            anim.style.cssText = `
+        ${
+            this.settings.verticalMode
+                ? `transform: translateY(${translateValue});`
+                : `transform: translateX(${translateValue});`
+        }
+      `
+        })
+    }
+
+    public reset(): void {
+        // Reset implementation can be added here
     }
 }
-
-// const el = document.querySelectorAll(".image-compare");
-
-// el.forEach((viewer) => {
-//   let v = new ImageCompare(viewer, {
-//     controlShadow: false,
-//     addCircle: true,
-//     addCircleBlur: true,
-//     fluidMode: false,
-//     showLabels: true,
-//     labelOptions: {
-//       onHover: true,
-//       before: "Draft",
-//       after: "Final",
-//     },
-//   }).mount();
-// });
 
 export default ImageCompareViewer

@@ -37,8 +37,10 @@ let viewer: any
 const handleComparePosition = (event: MouseEvent) => {
     const container = document.getElementById('ImageCompareViewer')
     if (!container) return
-    mouseX = event.pageX - container.offsetLeft
-    mouseY = event.pageY - container.offsetTop
+    // 鼠标在容器内的相对位置
+    const rect = container.getBoundingClientRect()
+    mouseX = event.clientX - rect.left
+    mouseY = event.clientY - rect.top
 }
 
 const handleCompareScale = (event: WheelEvent) => {
@@ -139,7 +141,7 @@ onMounted(() => {
 
         // Smoothing
 
-        smoothing: true,
+        smoothing: false, // 开启可能导致卡顿
         smoothingAmount: 100,
 
         // Other options
@@ -151,8 +153,8 @@ onMounted(() => {
     }
     viewer = new ImageCompareViewer(container, options).mount()
 
-    container?.addEventListener('wheel', handleCompareScale)
-    container?.addEventListener('mousemove', handleComparePosition)
+    container.addEventListener('wheel', handleCompareScale)
+    container.addEventListener('mousemove', handleComparePosition)
 })
 
 onUnmounted(() => {
